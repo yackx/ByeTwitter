@@ -1,2 +1,2 @@
-orjson
-tweepy[async]
+orjson  # for parsing local archive
+tweepy

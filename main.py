@@ -1,18 +1,18 @@
-import dataclasses
+"""Delete and unlike tweets """
+
 import logging
 import os
 import signal
 import sys
 
-import orjson
 import tweepy
 
+from stats import Stats
 
-@dataclasses.dataclass()
-class Stats:
-    count_deleted: int = 0
-    count_not_found: int = 0
-
+dry_run = False
+is_verbose = False
+is_delete_tweets = False
+is_unlike_tweets = True
 
 stats = Stats()
 
@@ -30,33 +30,41 @@ auth.set_access_token(os.environ["TWITTER_ACCESS_TOKEN"], os.environ["TWITTER_AC
 api = tweepy.API(auth)
 
 
-def load_tweets(archive_path):
-    with open(f"{archive_path}/data/tweet.js", "r") as f:
-        lines = "".join(f.readlines()).removeprefix("window.YTD.tweet.part0 = ")
-        json = orjson.loads(lines)
-        for tweet in json:
-            yield tweet["tweet"]["id_str"]
+def delete_tweets():
+    def action(tweet_id):
+        api.destroy_status(tweet_id)
+        # API v2 always responds deleted: True even if tweet does not exist
+        # resp = client.delete_tweet(tweet_id, user_auth=True)
+        stats.count_deleted += 1
+
+    perform_action(cursor_func=api.user_timeline, action_func=action, action_name="delete")
 
 
-def delete_tweets(archive_path):
-    # for tweet_id in ["1602331721638232064"]:
-    for tweet_id in load_tweets(archive_path):
-        logging.info(f"Delete tweet {tweet_id}")
-        try:
-            api.destroy_status(tweet_id)
-            # API v2 always responds deleted: True even if tweet does not exist
-            # resp = client.delete_tweet(tweet_id, user_auth=True)
-        except tweepy.errors.NotFound:
-            stats.count_not_found += 1
-        except Exception:
-            logging.exception(f"Failed to delete tweet")
-            raise
-    logging.info(str(stats))
+def unlike_tweets():
+    def action(tweet_id):
+        api.destroy_favorite(tweet_id)
+        stats.count_unlike += 1
+
+    perform_action(cursor_func=api.get_favorites, action_func=action, action_name="unlike")
+
+
+def perform_action(*, cursor_func, action_func, action_name):
+    logging.info("Retrieving tweets")
+    for i, tweet in enumerate(tweepy.Cursor(cursor_func).items()):
+        logging.debug(f"{action_name} {tweet.id} {tweet.created_at}")
+        if not dry_run:
+            try:
+                action_func(tweet.id)
+            except Exception:
+                logging.exception(f"Failed to perform action {action_name}")
+                raise
+        if i % 20 == 0:
+            logging.info(stats)
 
 
 def configure_logger():
     root = logging.getLogger()
-    root.setLevel(logging.INFO)
+    root.setLevel(logging.INFO if not is_verbose else logging.DEBUG)
     handler = logging.StreamHandler(sys.stdout)
     handler.setLevel(logging.DEBUG)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -66,7 +74,6 @@ def configure_logger():
 
 def sigint_handler(sig, frame):
     logging.warning('Interrupted')
-    logging.info(stats)
     client.session.close()
     sys.exit(0)
 
@@ -74,5 +81,10 @@ def sigint_handler(sig, frame):
 if __name__ == '__main__':
     signal.signal(signal.SIGINT, sigint_handler)
     configure_logger()
-    path = sys.argv[1]
-    delete_tweets(path)
+    try:
+        if is_unlike_tweets:
+            unlike_tweets()
+        if is_delete_tweets:
+            delete_tweets()
+    finally:
+        logging.info(stats)
