@@ -37,6 +37,7 @@ def delete_tweets():
         # resp = client.delete_tweet(tweet_id, user_auth=True)
         stats.count_deleted += 1
 
+    logging.info("Deleting tweets")
     perform_action(cursor_func=api.user_timeline, action_func=action, action_name="delete")
 
 
@@ -45,6 +46,7 @@ def unlike_tweets():
         api.destroy_favorite(tweet_id)
         stats.count_unlike += 1
 
+    logging.info("Unliking tweets")
     perform_action(cursor_func=api.get_favorites, action_func=action, action_name="unlike")
 
 
