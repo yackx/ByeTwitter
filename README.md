@@ -28,7 +28,12 @@ Set the following environment variables:
 
 The scripts use the API v.1 (v.2 is not that great).
 
-You can either download an archive from your Twitter account and use the [local archive version](local_archive.py) or use the [full API version](main.py).
+You can either:
+
+- download an archive from your Twitter account and use the [local archive version](local_archive.py) or
+- use the [full API version](main.py).
+
+The local archive is slightly faster, uses less API calls and is more reliable. For some reason, the API version does not allow to fetch old tweets and likes. 
 
 ```bash
 (venv)$ python main.py
