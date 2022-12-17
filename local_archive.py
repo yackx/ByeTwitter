@@ -93,7 +93,7 @@ def unlike_tweets(archive_path):
         deleted_tweet_ids = [line.strip() for line in f.readlines()]
 
     with open(file_name, "a") as f:
-        for tweet_id in load_liked_tweet_ids(archive_path):
+        for i, tweet_id in enumerate(load_liked_tweet_ids(archive_path)):
             if tweet_id in deleted_tweet_ids:
                 stats.count_skipped += 1
                 logging.debug(f"Already deleted or skipped {tweet_id}")
@@ -113,6 +113,8 @@ def unlike_tweets(archive_path):
                     raise
                 f.write(tweet_id + "\n")
                 f.flush()
+            if i % 20 == 0:
+                logging.info(stats)
 
 
 def configure_logger():
