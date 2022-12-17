@@ -35,8 +35,8 @@ api = tweepy.API(auth)
 
 
 def load_tweet_ids(archive_path):
-    with open(f"{archive_path}/data/tweet.js", "r") as f:
-        lines = "".join(f.readlines()).removeprefix("window.YTD.tweet.part0 = ")
+    with open(f"{archive_path}/data/tweets.js", "r") as f:
+        lines = "".join(f.readlines()).removeprefix("window.YTD.tweets.part0 = ")
         json = orjson.loads(lines)
         logging.info(f"Loaded {len(json)} archived tweets")
         return [tweet["tweet"]["id_str"] for tweet in json]
