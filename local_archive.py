@@ -15,7 +15,7 @@ import tweepy
 from stats import Stats
 
 is_verbose = True
-do_unlike_tweets = False
+do_unlike_tweets = True
 do_delete_tweets = True
 
 stats = Stats()

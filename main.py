@@ -11,7 +11,7 @@ from stats import Stats
 
 dry_run = False
 is_verbose = False
-is_delete_tweets = False
+is_delete_tweets = True
 is_unlike_tweets = True
 
 stats = Stats()
