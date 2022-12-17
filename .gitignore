@@ -1,2 +1,3 @@
 venv
 deleted_and_skipped.txt
+__pycache__
