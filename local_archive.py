@@ -43,38 +43,13 @@ def load_tweet_ids(archive_path):
 
 
 def delete_tweets(archive_path):
-    file_name = "./deleted_and_skipped.txt"
-    if not os.path.exists(file_name):
-        open(file_name, "w").close()
-    with open(file_name, "r") as f:
-        deleted_tweet_ids = [line.strip() for line in f.readlines()]
+    def action(tweet_id):
+        api.destroy_status(tweet_id)
+        # API v2 always responds deleted: True even if tweet does not exist
+        # resp = client.delete_tweet(tweet_id, user_auth=True)
+        stats.count_deleted += 1
 
-    with open(file_name, "a") as f:
-        for i, tweet_id in enumerate(load_tweet_ids(archive_path)):
-            if tweet_id in deleted_tweet_ids:
-                stats.count_skipped += 1
-                logging.debug(f"Already deleted or skipped {tweet_id}")
-            else:
-                if is_verbose:
-                    logging.info(f"Delete tweet {tweet_id}")
-                try:
-                    api.destroy_status(tweet_id)
-                    # API v2 always responds deleted: True even if tweet does not exist
-                    # resp = client.delete_tweet(tweet_id, user_auth=True)
-                    stats.count_deleted += 1
-                    break
-                except tweepy.errors.NotFound:
-                    stats.count_not_found += 1
-                except tweepy.errors.Forbidden as e:
-                    logging.error(f"Forbidden {tweet_id} -> {e.api_errors}")
-                    stats.count_forbidden += 1
-                except Exception:
-                    logging.exception(f"Failed to delete tweet")
-                    raise
-                f.write(tweet_id + "\n")
-                f.flush()
-            if i % 20 == 0:
-                logging.info(stats)
+    perform_action(archive_path=archive_path, load_func=load_tweet_ids, action_func=action, action_name="Delete")
 
 
 def load_liked_tweet_ids(archive_path):
@@ -86,6 +61,14 @@ def load_liked_tweet_ids(archive_path):
 
 
 def unlike_tweets(archive_path):
+    def action(tweet_id):
+        api.destroy_favorite(tweet_id)
+        stats.count_unlike += 1
+
+    perform_action(archive_path=archive_path, load_func=load_liked_tweet_ids, action_func=action, action_name="Unlike")
+
+
+def perform_action(*, archive_path, load_func, action_func, action_name):
     file_name = "./deleted_and_skipped.txt"
     if not os.path.exists(file_name):
         open(file_name, "w").close()
@@ -93,15 +76,14 @@ def unlike_tweets(archive_path):
         deleted_tweet_ids = [line.strip() for line in f.readlines()]
 
     with open(file_name, "a") as f:
-        for i, tweet_id in enumerate(load_liked_tweet_ids(archive_path)):
+        for i, tweet_id in enumerate(load_func(archive_path)):
             if tweet_id in deleted_tweet_ids:
                 stats.count_skipped += 1
-                logging.debug(f"Already deleted or skipped {tweet_id}")
+                logging.debug(f"Already processed {tweet_id}")
             else:
-                logging.info(f"Unlike {tweet_id}")
+                logging.info(f"{action_name} {tweet_id}")
                 try:
-                    api.unretweet(tweet_id)
-                    stats.count_unlike += 1
+                    action_func(tweet_id)
                 except tweepy.errors.NotFound:
                     logging.info(f"Not found {tweet_id}")
                     stats.count_not_found += 1
@@ -109,7 +91,7 @@ def unlike_tweets(archive_path):
                     logging.error(f"Forbidden {tweet_id} -> {e.api_errors}")
                     stats.count_forbidden += 1
                 except Exception:
-                    logging.exception(f"Failed to unlike tweet")
+                    logging.exception(f"Failed to process")
                     raise
                 f.write(tweet_id + "\n")
                 f.flush()
