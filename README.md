@@ -1,6 +1,6 @@
 # ByeTwitter
 
-**Yet another soft Twitter content cleaner**
+**Yet another Twitter account eraser**
 
 ## Scope
 
