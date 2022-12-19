@@ -6,6 +6,9 @@
 
 - Delete all tweets
 - Unlike all tweets
+- Delete direct messages
+
+Note: direct messages remain available in the recipient's account.
 
 ## Install
 

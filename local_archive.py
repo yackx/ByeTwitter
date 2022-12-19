@@ -15,10 +15,13 @@ import tweepy
 from stats import Stats
 
 is_verbose = True
-do_unlike_tweets = True
-do_delete_tweets = True
+do_unlike_tweets = False
+do_delete_tweets = False
+do_delete_direct_messages = True
 
 stats = Stats()
+
+account_id = os.getenv("TWITTER_ACCOUNT_ID")
 
 # API v2
 client = tweepy.Client(
@@ -47,7 +50,7 @@ def delete_tweets(archive_path):
         api.destroy_status(tweet_id)
         # API v2 always responds deleted: True even if tweet does not exist
         # resp = client.delete_tweet(tweet_id, user_auth=True)
-        stats.count_deleted += 1
+        stats.count_deleted_tweets += 1
 
     perform_action(archive_path=archive_path, load_func=load_tweet_ids, action_func=action, action_name="Delete")
 
@@ -68,32 +71,61 @@ def unlike_tweets(archive_path):
     perform_action(archive_path=archive_path, load_func=load_liked_tweet_ids, action_func=action, action_name="Unlike")
 
 
+def load_message_ids(archive_path):
+    with open(f"{archive_path}/data/direct-messages.js", "r") as f:
+        lines = "".join(f.readlines()).removeprefix("window.YTD.direct_messages.part0 = ")
+        json = orjson.loads(lines)
+        logging.info(f"Loaded {len(json)} conversations")
+        message_ids = []
+        for conversation in json:
+            for message in conversation["dmConversation"]["messages"]:
+                try:
+                    if message["messageCreate"]["senderId"] == account_id:
+                        message_ids.append(message["messageCreate"]["id"])
+                except KeyError:
+                    # Sanity check. Sometimes the keys is different and can be ignored
+                    try:
+                        message["welcomeMessageCreate"]
+                    except KeyError:
+                        logging.error(f"Garbled keys in: {message}")
+                        raise
+        return message_ids
+
+
+def delete_direct_messages(archive_path):
+    def action(message_id):
+        api.delete_direct_message(message_id)
+        stats.count_deleted_dm += 1
+
+    perform_action(archive_path=archive_path, load_func=load_message_ids, action_func=action, action_name="Delete DM")
+
+
 def perform_action(*, archive_path, load_func, action_func, action_name):
     file_name = "./deleted_and_skipped.txt"
     if not os.path.exists(file_name):
         open(file_name, "w").close()
     with open(file_name, "r") as f:
-        deleted_tweet_ids = [line.strip() for line in f.readlines()]
+        deleted_resource_ids = [line.strip() for line in f.readlines()]
 
     with open(file_name, "a") as f:
-        for i, tweet_id in enumerate(load_func(archive_path)):
-            if tweet_id in deleted_tweet_ids:
+        for i, resource_id in enumerate(load_func(archive_path)):
+            if resource_id in deleted_resource_ids:
                 stats.count_skipped += 1
-                logging.debug(f"Already processed {tweet_id}")
+                logging.debug(f"Already processed {resource_id}")
             else:
-                logging.info(f"{action_name} {tweet_id}")
+                logging.info(f"{action_name} {resource_id}")
                 try:
-                    action_func(tweet_id)
+                    action_func(resource_id)
                 except tweepy.errors.NotFound:
-                    logging.info(f"Not found {tweet_id}")
+                    logging.info(f"Not found {resource_id}")
                     stats.count_not_found += 1
                 except tweepy.errors.Forbidden as e:
-                    logging.error(f"Forbidden {tweet_id} -> {e.api_errors}")
+                    logging.error(f"Forbidden {resource_id} -> {e.api_errors}")
                     stats.count_forbidden += 1
                 except Exception:
                     logging.exception(f"Failed to process")
                     raise
-                f.write(tweet_id + "\n")
+                f.write(resource_id + "\n")
                 f.flush()
             if i % 20 == 0:
                 logging.info(stats)
@@ -124,5 +156,7 @@ if __name__ == '__main__':
             unlike_tweets(path)
         if do_delete_tweets:
             delete_tweets(path)
+        if do_delete_direct_messages:
+            delete_direct_messages(path)
     finally:
         logging.info(stats)

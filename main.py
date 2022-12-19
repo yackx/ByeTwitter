@@ -35,7 +35,7 @@ def delete_tweets():
         api.destroy_status(tweet_id)
         # API v2 always responds deleted: True even if tweet does not exist
         # resp = client.delete_tweet(tweet_id, user_auth=True)
-        stats.count_deleted += 1
+        stats.count_deleted_tweets += 1
 
     logging.info("Deleting tweets")
     perform_action(cursor_func=api.user_timeline, action_func=action, action_name="delete")
